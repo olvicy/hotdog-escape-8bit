@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Хот-Дог Квест: Абсолютний Фінал</title>
+    <style>
+        body {
+            background-color: #111;
+            color: #00ff00;
+            font-family: 'Courier New', Courier, monospace;
+            text-align: center;
+            margin: 0;
+            padding: 10px;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        h1 {
+            font-size: 18px;
+            text-shadow: 2px 2px #ff0000;
+            margin: 5px 0;
+        }
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            background-color: #222;
+            border: 4px solid #00ff00;
+            margin: 10px auto;
+            box-shadow: 0 0 20px #00ff00;
+            overflow: hidden;
+            max-width: 100%;
+            cursor: pointer;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .ui {
+            font-size: 12px;
+            margin-bottom: 5px;
+            color: #aaa;
+        }
+        #mobile-controls {
+            display: none;
+            margin-top: 10px;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .ctrl-btn {
+            background-color: #333;
+            color: #00ff00;
+            border: 2px solid #00ff00;
+            font-size: 18px;
+            width: 55px;
+            height: 55px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .ctrl-btn:active {
+            background-color: #00ff00;
+            color: #111;
+        }
+        @media (max-width: 850px) {
+            #mobile-controls {
+                display: flex;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <h1 id="level-title">[ ХОТ-ДОГ КВЕСТ ]</h1>
+    <div class="ui" id="level-desc">Уникайте лазерів та дістаньтеся до ВИХОДУ!</div>
+    
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="500"></canvas>
+    </div>
+
+    <div id="mobile-controls">
+        <div style="width: 100%; display: flex; justify-content: center; gap: 8px;">
+            <button class="ctrl-btn" id="btn-upleft">↖️</button>
+            <button class="ctrl-btn" id="btn-up">⬆️</button>
+            <button class="ctrl-btn" id="btn-upright">↗️</button>
+        </div>
+        <div style="width: 100%; display: flex; justify-content: center; gap: 8px;">
+            <button class="ctrl-btn" id="btn-left">⬅️</button>
+            <button class="ctrl-btn" id="btn-action" style="width: 110px; background-color: #550000; color: #ff5555;">🌭 СТРІЛЬБА</button>
+            <button class="ctrl-btn" id="btn-right">➡️</button>
+        </div>
+        <div style="width: 100%; display: flex; justify-content: center; gap: 8px;">
+            <button class="ctrl-btn" id="btn-downleft">↙️</button>
+            <button class="ctrl-btn" id="btn-down">⬇️</button>
+            <button class="ctrl-btn" id="btn-downright">↘️</button>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let audioCtx = null;
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    function playSound(type) {
+        try {
+            initAudio();
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            if (type === 'laser') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.2);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.2);
+            } else if (type === 'shout') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                osc.frequency.setValueAtTime(250, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.3);
+            } else if (type === 'win') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                osc.frequency.setValueAtTime(450, audioCtx.currentTime + 0.15);
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.5);
+            } else if (type === 'lose') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+                osc.frequency.setValueAtTime(60, audioCtx.currentTime + 0.3);
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.6);
+            } else if (type === 'shoot') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'hit') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                osc.frequency.setValueAtTime(150, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.2);
+            }
+        } catch (e) { console.log(e); }
+    }
+
+    let gameState = 'start'; 
+    let currentLevel = 1;
+    let transitionMessage = "";
+
+    const player = { x: 390, y: 440, size: 18, speed: 2.6, lastDirX: 1, lastDirY: 0 };
+
+    const gamerRoom = { x: 380, y: 230, w: 40, h: 40, laserAngle: 0, rotSpeed: 0.03, stopTimer: 0, isStopped: false };
+    const gamerKitchen = { x: 100, y: 400, w: 40, h: 40, vx: 1.6, vy: -1.2, laserAngle: 0, rotSpeed: 0.035, pauseTimer: 0, isPaused: false };
+    const gamerLevel3 = { x: 400, y: 200, w: 40, h: 40, vx: 3.2, vy: 2.5 };
+    
+    let gamerHungerTimer = 0;
+    let showGamerHungerAura = false;
+    let hotdogs = [];
+    let hitsCount = 0;
+    let lastShotTime = 0;
+    let shoutText = "ХОТ-ДОГ!";
+
+    const roomObstacles = [
+        { x: 80, y: 60, w: 140, h: 180, name: 'ШАФА', color: '#8b4513' },
+        { x: 520, y: 60, w: 200, h: 140, name: 'КНИЖКИ', color: '#4682b4' },
+        { x: 80, y: 280, w: 180, h: 140, name: 'ДИВАН', color: '#2e8b57' },
+        { x: 500, y: 260, w: 160, h: 160, name: 'СЕЙФ', color: '#9932cc' }
+    ];
+
+    const kitchenObstacles = [
+        { x: 300, y: 180, w: 200, h: 100, name: 'СТІЛ', color: '#8b5a2b' },
+        { x: 100, y: 80, w: 120, h: 80, name: 'ПЛИТА', color: '#555555' },
+        { x: 580, y: 320, w: 120, h: 90, name: 'МИЙКА', color: '#20b2aa' }
+    ];
+
+    const possibleEntrances = [
+        { x: 380, y: 460, w: 40, h: 30 },
+        { x: 650, y: 460, w: 40, h: 30 },
+        { x: 150, y: 460, w: 40, h: 30 }
+    ];
+    const possibleExits = [
+        { x: 30, y: 80, w: 30, h: 40 },
+        { x: 740, y: 150, w: 30, h: 40 },
+        { x: 370, y: 30, w: 60, h: 30 }
+    ];
+
+    let entranceDoor = { x: 380, y: 460, w: 40, h: 30 };
+    let exitDoor = { x: 30, y: 80, w: 30, h: 40 };
+
+    function randomizeDoors() {
+        entranceDoor = possibleEntrances[Math.floor(Math.random() * possibleEntrances.length)];
+        let availableExits = possibleExits.filter(e => Math.abs(e.x - entranceDoor.x) > 100 || Math.abs(e.y - entranceDoor.y) > 100);
+        exitDoor = availableExits[Math.floor(Math.random() * availableExits.length)];
+        resetPlayerPosition();
+    }
+
+    function resetPlayerPosition() {
+        player.x = entranceDoor.x + 10;
+        player.y = entranceDoor.y > 400 ? 430 : 40;
+    }
+
+    function drawPixelSprite(type, x, y) {
+        const pixelSize = 2.5;
+        let spriteMatrix = (type === 'player') ? [
+            "    RRRR    ", "  RRRRRRRR  ", "  YYSSBB    ", " YSYSSBBBS  ",
+            " YSYYYSSSS  ", "   YYYYSS   ", "     SSSS   ", "   BBBBBB   ",
+            "  BBRBRBB   ", "  BBRBRBB   ", "  RRRRRR    ", " R RRRR R   ",
+            "R  RRRR  R  ", "   BB  BB   "
+        ] : [
+            "   HHHHH    ", "  H H H H   ", "  KKKKKKK   ", "  KSSKKSSK  ",
+            "  KSSSKSSK  ", "   KKKKKK   ", "    MMMM    ", "   MMMMMM   ",
+            "  MM M MM   ", "  WW WW WW  ", "  W      W  "
+        ];
+
+        const colorMap = {
+            'R': '#ff0000', 'Y': '#ffaa00', 'S': '#ffccaa',
+            'B': '#0000ff', 'H': '#333333', 'K': '#553311',
+            'M': '#aa00aa', 'W': '#222222'
+        };
+
+        for (let row = 0; row < spriteMatrix.length; row++) {
+            for (let col = 0; col < spriteMatrix[row].length; col++) {
+                let char = spriteMatrix[row][col];
+                if (char !== ' ') {
+                    ctx.fillStyle = colorMap[char] || '#fff';
+                    ctx.fillRect(x + col * pixelSize, y + row * pixelSize, pixelSize, pixelSize);
+                }
+            }
+        }
+    }
+
+    const keys = {};
+    window.addEventListener('keydown', (e) => { 
+        if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
+        keys[e.code] = true; 
+        updatePlayerDirection();
+        handleInteraction();
+    });
+    window.addEventListener('keyup', (e) => { 
+        keys[e.code] = false; 
+        updatePlayerDirection();
+    });
+
+    function updatePlayerDirection() {
+        let dx = 0, dy = 0;
+        if (keys['ArrowLeft'] || keys['KeyA']) dx = -1;
+        if (keys['ArrowRight'] || keys['KeyD']) dx = 1;
+        if (keys['ArrowUp'] || keys['KeyW']) dy = -1;
+        if (keys['ArrowDown'] || keys['KeyS']) dy = 1;
+
+        if (dx !== 0 || dy !== 0) {
+            player.lastDirX = dx;
+            player.lastDirY = dy;
+        }
+    }
+
+    function setupMobileBtn(id, codeX, codeY, isAction = false) {
+        const btn = document.getElementById(id);
+        const trigger = (e) => {
+            e.preventDefault();
+            if (isAction && currentLevel === 3 && gameState === 'playing') {
+                shootHotdog();
+                return;
+            }
+            if (codeX !== 0) keys[codeX > 0 ? 'ArrowRight' : 'ArrowLeft'] = true;
+            if (codeY !== 0) keys[codeY > 0 ? 'ArrowDown' : 'ArrowUp'] = true;
+            updatePlayerDirection();
+            handleInteraction();
+        };
+        const release = (e) => {
+            e.preventDefault();
+            if (codeX !== 0) keys[codeX > 0 ? 'ArrowRight' : 'ArrowLeft'] = false;
+            if (codeY !== 0) keys[codeY > 0 ? 'ArrowDown' : 'ArrowUp'] = false;
+            updatePlayerDirection();
+        };
+        btn.addEventListener('touchstart', trigger, {passive: false});
+        btn.addEventListener('touchend', release, {passive: false});
+        btn.addEventListener('mousedown', trigger);
+        btn.addEventListener('mouseup', release);
+    }
+
+    setupMobileBtn('btn-up', 0, -1);
+    setupMobileBtn('btn-down', 0, 1);
+    setupMobileBtn('btn-left', -1, 0);
+    setupMobileBtn('btn-right', 1, 0);
+    setupMobileBtn('btn-upleft', -1, -1);
+    setupMobileBtn('btn-upright', 1, -1);
+    setupMobileBtn('btn-downleft', -1, 1);
+    setupMobileBtn('btn-downright', 1, 1);
+    setupMobileBtn('btn-action', 0, 0, true);
+
+    function handleInteraction() {
+        initAudio();
+        if (gameState === 'start' || gameState === 'win') {
+            startGame();
+        } else if (gameState === 'transition') {
+            nextLevelSetup();
+        } else if (gameState === 'playing' && currentLevel === 3 && keys['Space']) {
+            shootHotdog();
+        }
+    }
+
+    canvas.addEventListener('click', handleInteraction);
+    canvas.addEventListener('touchstart', (e) => {
+        handleInteraction();
+    }, {passive: true});
+
+    function startGame() {
+        gameState = 'playing';
+        currentLevel = 1;
+        document.getElementById('level-title').innerText = "[ РІВЕНЬ 1: КІМНАТА ГЕЙМЕРА ]";
+        document.getElementById('level-desc').innerText = "Знайдіть ВИХІД і оминайте лазер!";
+        randomizeDoors();
+    }
+
+    function shootHotdog() {
+        let now = Date.now();
+        if (now - lastShotTime < 300) return;
+        lastShotTime = now;
+        playSound('shoot');
+
+        let len = Math.hypot(player.lastDirX, player.lastDirY);
+        let ndx = len > 0 ? player.lastDirX / len : 1;
+        let ndy = len > 0 ? player.lastDirY / len : 0;
+
+        hotdogs.push({ 
+            x: player.x + 8, 
+            y: player.y + 8, 
+            vx: ndx * 6.5, 
+            vy: ndy * 6.5 
+        });
+    }
+
+    function showTransition(msg, nextLvl) {
+        gameState = 'transition';
+        transitionMessage = msg;
+        currentLevel = nextLvl;
+        playSound('win');
+    }
+
+    function nextLevelSetup() {
+        if (currentLevel === 4) {
+            gameState = 'win';
+        } else {
+            gameState = 'playing';
+            if (currentLevel === 2) {
+                document.getElementById('level-title').innerText = "[ РІВЕНЬ 2: КУХНЯ ]";
+                document.getElementById('level-desc').innerText = "Геймер шукає хот-дог! Проскочіть до ВИХОДУ.";
+                randomizeDoors();
+            } else if (currentLevel === 3) {
+                document.getElementById('level-title').innerText = "[ РІВЕНЬ 3: БИТВА ХОТ-ДОГАМИ ]";
+                document.getElementById('level-desc').innerText = "Стріляйте хот-догами (навіть по діагоналі!) і влучіть 10 разів!";
+                hitsCount = 0;
+                hotdogs = [];
+                player.x = 400; player.y = 400;
+            }
+        }
+    }
+
+    function checkLaserHit(startX, startY, angle, pCX, pCY) {
+        let dirX = Math.cos(angle);
+        let dirY = Math.sin(angle);
+        let vx = pCX - startX;
+        let vy = pCY - startY;
+        let proj = vx * dirX + vy * dirY;
+        if (proj > 0) {
+            let cx = startX + proj * dirX;
+            let cy = startY + proj * dirY;
+            if (Math.hypot(pCX - cx, pCY - cy) < 16) return true;
+        }
+        return false;
+    }
+
+    function update() {
+        if (gameState !== 'playing') return;
+
+        if (currentLevel === 1) {
+            gamerRoom.stopTimer++;
+            if (gamerRoom.isStopped) {
+                if (gamerRoom.stopTimer > 60) { gamerRoom.isStopped = false; gamerRoom.stopTimer = 0; }
+            } else {
+                gamerRoom.laserAngle += gamerRoom.rotSpeed;
+                if (gamerRoom.stopTimer > 160) { gamerRoom.isStopped = true; gamerRoom.stopTimer = 0; }
+            }
+        }
+
+        if (currentLevel === 3) {
+            gamerHungerTimer++;
+            if (gamerHungerTimer > 160) {
+                showGamerHungerAura = true;
+                if (gamerHungerTimer > 230) {
+                    showGamerHungerAura = false;
+                    gamerHungerTimer = 0;
+                }
+            }
+        }
+
+        let nextX = player.x;
+        let nextY = player.y;
+
+        if (keys['ArrowUp'] || keys['KeyW'] || keys['W']) nextY -= player.speed;
+        if (keys['ArrowDown'] || keys['KeyS'] || keys['S']) nextY += player.speed;
+        if (keys['ArrowLeft'] || keys['KeyA'] || keys['A']) nextX -= player.speed;
+        if (keys['ArrowRight'] || keys['KeyD'] || keys['D']) nextX += player.speed;
+
+        if (nextX < 0) nextX = 0;
+        if (nextX + player.size > canvas.width) nextX = canvas.width - player.size;
+        if (nextY < 0) nextY = 0;
+        if (nextY + player.size > canvas.height) nextY = canvas.height - player.size;
+
+        if (currentLevel === 1 || currentLevel === 2) {
+            let activeObs = (currentLevel === 1) ? roomObstacles : kitchenObstacles;
+            let collision = false;
+            for (let obs of activeObs) {
+                if (nextX < obs.x + obs.w && nextX + player.size > obs.x &&
+                    nextY < obs.y + obs.h && nextY + player.size > obs.y) {
+                    collision = true;
+                    break;
+                }
+            }
+            if (!collision) { player.x = nextX; player.y = nextY; }
+        } else {
+            player.x = nextX;
+            player.y = nextY;
+        }
+
+        let pCX = player.x + player.size / 2;
+        let pCY = player.y + player.size / 2;
+
+        if (currentLevel === 1) {
+            let gCX = gamerRoom.x + 20, gCY = gamerRoom.y + 20;
+            if (Math.hypot(pCX - gCX, pCY - gCY) < 22 || (!gamerRoom.isStopped && checkLaserHit(gCX, gCY, gamerRoom.laserAngle, pCX, pCY))) {
+                playSound('lose');
+                randomizeDoors();
+                return;
+            }
+            if (player.x < exitDoor.x + exitDoor.w && player.x + player.size > exitDoor.x &&
+                player.y < exitDoor.y + exitDoor.h && player.y + player.size > exitDoor.y) {
+                showTransition("Геймер вас не помітив!", 2);
+            }
+        } else if (currentLevel === 2) {
+            gamerKitchen.x += gamerKitchen.vx;
+            gamerKitchen.y += gamerKitchen.vy;
+            if (gamerKitchen.x < 20 || gamerKitchen.x + gamerKitchen.w > canvas.width - 20) gamerKitchen.vx *= -1;
+            if (gamerKitchen.y < 20 || gamerKitchen.y + gamerKitchen.h > canvas.height - 20) gamerKitchen.vy *= -1;
+
+            gamerKitchen.pauseTimer++;
+            if (gamerKitchen.isPaused) {
+                if (gamerKitchen.pauseTimer > 70) { gamerKitchen.isPaused = false; gamerKitchen.pauseTimer = 0; }
+            } else {
+                gamerKitchen.laserAngle += gamerKitchen.rotSpeed;
+                if (gamerKitchen.pauseTimer > 150) { gamerKitchen.isPaused = true; gamerKitchen.pauseTimer = 0; }
+            }
+
+            let gCX = gamerKitchen.x + 20, gCY = gamerKitchen.y + 20;
+            if (Math.hypot(pCX - gCX, pCY - gCY) < 25 || (!gamerKitchen.isPaused && checkLaserHit(gCX, gCY, gamerKitchen.laserAngle, pCX, pCY))) {
+                playSound('lose');
+                randomizeDoors();
+                return;
+            }
+            if (player.x < exitDoor.x + exitDoor.w && player.x + player.size > exitDoor.x &&
+                player.y < exitDoor.y + exitDoor.h && player.y + player.size > exitDoor.y) {
+                showTransition("Геймер вас не помітив!", 3);
+            }
+        } else if (currentLevel === 3) {
+            if (!showGamerHungerAura) {
+                gamerLevel3.x += gamerLevel3.vx;
+                gamerLevel3.y += gamerLevel3.vy;
+                if (gamerLevel3.x < 20 || gamerLevel3.x + gamerLevel3.w > canvas.width - 20) gamerLevel3.vx *= -1;
+                if (gamerLevel3.y < 20 || gamerLevel3.y + gamerLevel3.h > canvas.height - 20) gamerLevel3.vy *= -1;
+            }
+
+            let gCX = gamerLevel3.x + 20, gCY = gamerLevel3.y + 20;
+            if (Math.hypot(pCX - gCX, pCY - gCY) < 25) {
+                playSound('lose');
+                player.x = 400; player.y = 400;
+            }
+
+            for (let i = hotdogs.length - 1; i >= 0; i--) {
+                let h = hotdogs[i];
+                h.x += h.vx;
+                h.y += h.vy;
+
+                if (h.x > gamerLevel3.x - 5 && h.x < gamerLevel3.x + gamerLevel3.w + 5 &&
+                    h.y > gamerLevel3.y - 5 && h.y < gamerLevel3.y + gamerLevel3.h + 5) {
+                    playSound('hit');
+                    hitsCount++;
+                    hotdogs.splice(i, 1);
+
+                    if (hitsCount >= 10) {
+                        playSound('win');
+                        currentLevel = 4;
+                        gameState = 'win';
+                    }
+                } else if (h.x < 0 || h.x > canvas.width || h.y < 0 || h.y > canvas.height) {
+                    hotdogs.splice(i, 1);
+                }
+            }
+        }
+    }
+
+    function draw() {
+        ctx.fillStyle = "#151515";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.strokeStyle = "#222222";
+        ctx.lineWidth = 1;
+        for (let i = 0; i < canvas.width; i += 40) {
+            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+        }
+
+        if (gameState === 'start') {
+            ctx.fillStyle = "#00ff00";
+            ctx.font = "bold 22px Courier New";
+            ctx.fillText("ХОТ-ДОГ КВЕСТ", canvas.width / 2 - 100, 180);
+            ctx.font = "15px Courier New";
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText("Клікніть або торкніться для старту", canvas.width / 2 - 170, 240);
+            ctx.fillText("Керування: Стрілки / Кнопки", canvas.width / 2 - 130, 280);
+            return;
+        }
+
+        if (gameState === 'transition') {
+            ctx.fillStyle = "#ffaa00";
+            ctx.font = "bold 24px Courier New";
+            ctx.fillText(transitionMessage, canvas.width / 2 - 160, 220);
+            ctx.font = "14px Courier New";
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText("Натисніть або торкніться для продовження", canvas.width / 2 - 190, 270);
+            return;
+        }
+
+        if (gameState === 'win') {
+            ctx.fillStyle = "#ffaa00";
+            ctx.font = "bold 26px Courier New";
+            ctx.fillText("Геймер ситий!", canvas.width / 2 - 130, 200);
+            ctx.font = "16px Courier New";
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText("Гра завершена! Ви перемогли!", canvas.width / 2 - 140, 250);
+            ctx.fillText("Клікніть, щоб зіграти знову", canvas.width / 2 - 120, 300);
+            return;
+        }
+
+        if (currentLevel === 1 || currentLevel === 2) {
+            ctx.fillStyle = "#00aa00";
+            ctx.fillRect(entranceDoor.x, entranceDoor.y, entranceDoor.w, entranceDoor.h);
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "10px Courier New";
+            ctx.fillText("ВХІД", entranceDoor.x + 4, entranceDoor.y > 400 ? entranceDoor.y - 5 : entranceDoor.y + 25);
+
+            ctx.fillStyle = "#ff5500";
+            ctx.fillRect(exitDoor.x, exitDoor.y, exitDoor.w, exitDoor.h);
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "10px Courier New";
+            ctx.fillText("ВИХІД", exitDoor.x - 2, exitDoor.y > 200 ? exitDoor.y - 5 : exitDoor.y + 50);
+
+            let activeObs = (currentLevel === 1) ? roomObstacles : kitchenObstacles;
+            for (let obs of activeObs) {
+                ctx.fillStyle = obs.color;
+                ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+                ctx.strokeStyle = "#ffffff";
+                ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "11px Courier New";
+                ctx.fillText(obs.name, obs.x + 8, obs.y + 20);
+            }
+        }
+
+        if (currentLevel === 1) {
+            drawPixelSprite('gamer', gamerRoom.x + 2, gamerRoom.y + 2);
+            ctx.strokeStyle = "#ff0000";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            let startX = gamerRoom.x + 20, startY = gamerRoom.y + 20;
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(startX + Math.cos(gamerRoom.laserAngle) * 900, startY + Math.sin(gamerRoom.laserAngle) * 900);
+            ctx.stroke();
+            ctx.fillStyle = "#ff0000";
+            ctx.font = "bold 14px Courier New";
+            ctx.fillText(gamerRoom.isStopped ? "ПАУЗА" : shoutText, gamerRoom.x - 20, gamerRoom.y - 10);
+        } else if (currentLevel === 2) {
+            drawPixelSprite('gamer', gamerKitchen.x, gamerKitchen.y);
+            if (!gamerKitchen.isPaused) {
+                ctx.strokeStyle = "#ff0000";
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                let startX = gamerKitchen.x + 20, startY = gamerKitchen.y + 20;
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(startX + Math.cos(gamerKitchen.laserAngle) * 900, startY + Math.sin(gamerKitchen.laserAngle) * 900);
+                ctx.stroke();
+                ctx.fillStyle = "#ff0000";
+                ctx.font = "bold 14px Courier New";
+                ctx.fillText(shoutText, gamerKitchen.x - 20, gamerKitchen.y - 10);
+            } else {
+                ctx.fillStyle = "#00ff00";
+                ctx.font = "10px Courier New";
+                ctx.fillText("ПАУЗА", gamerKitchen.x - 10, gamerKitchen.y - 8);
+            }
+        } else if (currentLevel === 3) {
+            drawPixelSprite('gamer', gamerLevel3.x, gamerLevel3.y);
+
+            if (showGamerHungerAura) {
+                ctx.strokeStyle = "#ffaa00";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(gamerLevel3.x + 20, gamerLevel3.y + 20, 35, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.fillStyle = "#ffaa00";
+                ctx.font = "bold 11px Courier New";
+                ctx.fillText("ХОТ-ДОГ!", gamerLevel3.x - 15, gamerLevel3.y - 8);
+            }
+
+            ctx.fillStyle = "#ff5500";
+            ctx.font = "bold 16px Courier New";
+            ctx.fillText(`ХОТ-ДОГИ У ЦІЛІ: ${hitsCount} / 10`, 20, 30);
+
+            ctx.strokeStyle = "rgba(255, 255, 0, 0.4)";
+            ctx.lineWidth = 3;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            let len = Math.hypot(player.lastDirX, player.lastDirY);
+            let ndx = len > 0 ? player.lastDirX / len : 1;
+            let ndy = len > 0 ? player.lastDirY / len : 0;
+            ctx.moveTo(player.x + 9, player.y + 9);
+            ctx.lineTo(player.x + 9 + ndx * 250, player.y + 9 + ndy * 250);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = "#ffcc00";
+            for (let h of hotdogs) {
+                ctx.fillRect(h.x, h.y, 16, 10);
+                ctx.fillStyle = "#ff3300";
+                ctx.fillRect(h.x + 2, h.y + 3, 12, 4);
+                ctx.fillStyle = "#ffcc00";
+            }
+        }
+
+        drawPixelSprite('player', player.x - 2, player.y - 2);
+    }
+
+    function loop() {
+        update();
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    loop();
+</script>
+
+</body>
+</html>
