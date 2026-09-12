@@ -65,6 +65,31 @@
             background-color: #00ff00;
             color: #111;
         }
+        /* Стиль для неблокуючого ретро-сповіщення на мобільних */
+        #retro-mobile-banner {
+            display: none;
+            background-color: #220000;
+            border: 2px dashed #ff5500;
+            color: #ffaa00;
+            padding: 8px 12px;
+            margin: 0 auto 10px auto;
+            max-width: 780px;
+            font-size: 11px;
+            text-align: center;
+            box-sizing: border-box;
+            border-radius: 6px;
+        }
+        #retro-mobile-banner button {
+            background: #ff5500;
+            color: #fff;
+            border: none;
+            padding: 3px 8px;
+            margin-left: 8px;
+            font-family: 'Courier New', Courier, monospace;
+            cursor: pointer;
+            border-radius: 4px;
+            font-weight: bold;
+        }
         @media (max-width: 850px) {
             #mobile-controls {
                 display: flex;
@@ -77,6 +102,12 @@
     <h1 id="level-title">[ ХОТ-ДОГ КВЕСТ ]</h1>
     <div class="ui" id="level-desc">Уникайте лазерів та дістаньтеся до ВИХОДУ!</div>
     
+    <!-- Неблокуюче ретро-сповіщення для мобільних -->
+    <div id="retro-mobile-banner">
+        ⚠️ Увага! Цей квест занадто крутий для кишенькових пристроїв. Краще запустіть його на справжньому комп'ютері або ноутбуці, як справжні геймери з минулого!
+        <button onclick="document.getElementById('retro-mobile-banner').style.display='none'">Зрозуміло!</button>
+    </div>
+
     <div id="game-container">
         <canvas id="gameCanvas" width="800" height="500"></canvas>
     </div>
@@ -100,6 +131,12 @@
     </div>
 
 <script>
+    // Показуємо ретро-баннер лише якщо це мобільний пристрій
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+        document.getElementById('retro-mobile-banner').style.display = 'block';
+    }
+
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
 
@@ -172,6 +209,7 @@
     let gameState = 'start'; 
     let currentLevel = 1;
     let transitionMessage = "";
+    let winScreenTimer = 0; // Захист від випадкового пропуску фіналу
 
     const player = { x: 390, y: 440, size: 18, speed: 2.6, lastDirX: 1, lastDirY: 0 };
 
@@ -317,7 +355,7 @@
 
     function handleInteraction() {
         initAudio();
-        if (gameState === 'start' || gameState === 'win') {
+        if (gameState === 'start' || (gameState === 'win' && winScreenTimer > 30)) {
             startGame();
         } else if (gameState === 'transition') {
             nextLevelSetup();
@@ -367,6 +405,7 @@
     function nextLevelSetup() {
         if (currentLevel === 4) {
             gameState = 'win';
+            winScreenTimer = 0;
         } else {
             gameState = 'playing';
             if (currentLevel === 2) {
@@ -398,6 +437,10 @@
     }
 
     function update() {
+        if (gameState === 'win') {
+            winScreenTimer++;
+            return;
+        }
         if (gameState !== 'playing') return;
 
         if (currentLevel === 1) {
@@ -517,6 +560,7 @@
                         playSound('win');
                         currentLevel = 4;
                         gameState = 'win';
+                        winScreenTimer = 0;
                     }
                 } else if (h.x < 0 || h.x > canvas.width || h.y < 0 || h.y > canvas.height) {
                     hotdogs.splice(i, 1);
